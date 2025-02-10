@@ -1,0 +1,457 @@
+# Agust 19 2021
+# Description: Simulate data with a GAM model
+# aim: test the model to use with ULLA
+
+# clear environment
+
+load("fit0.RData")
+
+library(brms)
+library(tidyverse)
+library(tidybayes)
+library(bayesplot)
+# install.packages("mgcv")
+
+library(mgcv)
+
+data <- read.csv("data/Data_Full.csv")
+data2 <- read.csv("data/scaled_mass_index.csv")
+
+names(data)
+names(data2)
+
+data <- left_join(data, data2, by = "ID")
+glimpse(data)
+
+
+# Remove the fish that have missing values
+data = data[-which(data$Remove == 1), ]
+dim(data)
+
+# subset(data, TimePoint == 2) -> data1
+
+
+
+# glimpse(data1)
+# unique(data1$InfectionStatus)
+
+
+# subset(data1, InfectionStatus == "I-") -> data2
+# unique(data2$ID)
+
+
+# check the data
+glimpse(data)
+
+
+
+# facor InfectionStatus
+data$InfectionStatus <- factor(data$InfectionStatus)
+levels(data$InfectionStatus)
+levels(data$InfectionStatus)[2] <- "I+"
+levels(data$InfectionStatus)
+data$InfectionStatus <- factor(data$InfectionStatus, levels = c("C", "I-", "I+"))
+
+
+# factor time points
+
+data$TimePoint <- factor(data$TimePoint)
+levels(data$TimePoint)
+
+# factor Replicate
+
+data$Replicate <- factor(data$Replicate)
+
+reps <- sort(levels(data$Replicate))
+reps
+data$Replicate <- factor(data$Replicate, levels = c("R1", "R2", "R3", "R4", "R5", "R6", "R8", "R9", "R10"))
+levels(data$Replicate)
+
+# factor Sex
+data$sex <- factor(data$sex)
+levels(data$sex)
+
+
+glimpse(data)
+
+# Original date-time
+original_time <- as.POSIXct("2023-10-01 10:00:00", tz = "UTC")
+
+# Add 45 minutes (45 * 60 seconds)
+new_time <- original_time + 45 * 60 * 3 * 12
+
+
+(new_time - original_time)
+
+# Extract time of day
+time_of_day <- format(new_time, "%H:%M:%S")
+
+# Display the result
+print(time_of_day)  # Output: "13:19:56"
+
+
+data.frame(x = c(1, 2, 3), y = c(4, 5, 6)) -> df
+# Load necessary library
+library(ggplot2)
+
+# Sample data
+df <- data.frame(
+  x = 1:100,
+  y = cumsum(rnorm(100))
+)
+
+# Define rectangle boundaries
+rect_data <- data.frame(
+  xmin = hms::hms(hours = 20 + c(0, 24, 48)),
+  xmax = hms::hms(hours = 31 + c(0, 24, 48)),
+  ymin = -Inf,  # Extend to the bottom of the plot
+  ymax = Inf    # Extend to the top of the plot
+)
+rect_data2 <- data.frame(
+  xmin = hms::hms(hours = 21 + c(0, 24, 48)),
+  xmax = hms::hms(hours = 30 + c(0, 24, 48)),
+  ymin = -Inf,  # Extend to the bottom of the plot
+  ymax = Inf    # Extend to the top of the plot
+)
+
+# Create the plot
+ggplot(df, aes(x = x, y = y)) +
+  geom_line(color = "blue") +
+  geom_rect(
+    data = rect_data,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    fill = "darkgrey",
+    alpha = 0.1,
+    inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+  ) +
+
+
+  geom_rect(
+    data = rect_data,
+    aes(xmin = xmin-2, xmax = xmax-2, ymin = ymin, ymax = ymax),
+    fill = "red",
+    alpha = 0.1,
+    inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+  ) +
+
+    geom_rect(
+    data = rect_data,
+    aes(xmin = xmin-5, xmax = xmax-5, ymin = ymin, ymax = ymax),
+    fill = "red",
+    alpha = 0.1,
+    inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+  ) +
+
+
+  labs(title = "Line Plot with Vertical Rectangle Highlight",
+       x = "X-axis",
+       y = "Cumulative Sum") +
+  theme_minimal()
+
+
+
+
+
+# Plot the data
+
+# ggplot(data, aes(x = Min, y = Distance_sum, color = InfectionStatus)) +
+#   geom_point() +
+#   facet_wrap(~TimePoint) +
+#   theme_minimal() +
+#   labs(title = "Activity data", x = "Time", y = "Locomotor activity") +
+#   theme(legend.position = "top")
+
+
+glimpse(data)
+
+
+
+# Fit GAM model
+
+# # Fit the model with interaction between group and time
+# fit <- brm(Distance_sum ~ InfectionStatus + s(Min, by = InfectionStatus),
+#            data = data,
+#            family = gaussian(),
+#            chains = 4,
+#            iter = 2000,
+#            seed = 123)
+
+
+glimpse(data)
+
+
+data$ID <- factor(data$ID)
+data$Fish_ID <- factor(data$Fish_ID)
+
+levels(data$ID)
+levels(data$Fish_ID)
+
+
+
+delta = 10
+data$Dlog <- log(data$Distance_sum + delta)
+
+data$Treatment <- paste(data$InfectionStatus, data$TimePoint, sep = "_")
+data$Treatment <- factor(data$Treatment)
+levels(data$Treatment)
+
+data$TreatmentFull <- paste(paste(data$InfectionStatus, data$sex, sep = "_"), data$TimePoint, sep = "_")
+data$TreatmentFull <- factor(data$TreatmentFull)
+levels(data$TreatmentFull)
+
+if (FALSE) {
+fit0 <- brm(Dlog ~  Treatment + s(Min, by = Treatment) + (1 | Fish_ID) + (1 | Replicate),
+           data = data,
+           family = gaussian(),
+           chains = 4,
+           iter = 5000,
+           seed = 123, # backend = "cmdstanr",
+           algorithm = "meanfield",
+           adapt_engaged = TRUE,
+           tol_rel_obj = 0.5
+
+  )
+# # Check the model summary
+summary(fit0)
+
+# Check posterior predictive checks
+pp_check(fit0)
+
+# check residual-fitted diagnostic plot:
+#pp_check(fit0, type = "error_scatter_avg")
+
+# Fit the model with interaction between group and time
+fit <- brm(Dlog ~  TreatmentFull + s(Min, by = TreatmentFull) + (1 | Fish_ID) + (1 | Replicate),
+           data = data,
+           family = gaussian(),
+           chains = 4,
+           iter = 5000,
+           seed = 123, # backend = "cmdstanr",
+           algorithm = "meanfield",
+           adapt_engaged = TRUE,
+           tol_rel_obj = 0.5
+
+  )
+# # Check the model summary
+summary(fit)
+
+
+# Check posterior predictive checks
+pp_check(fit)
+
+# check residual-fitted diagnostic plot:
+#pp_check(fit, type = "error_scatter_avg")
+
+}
+
+# get posterior predictions
+range(data$Min)
+sim_data <- expand.grid(InfectionStatus = levels(data$InfectionStatus), TimePoint = levels(data$TimePoint), Min = 1:max(data$Min), sex = levels(data$sex))
+
+sim_data$TreatmentFull <- factor(paste(paste(sim_data$InfectionStatus, sim_data$sex, sep = "_"), sim_data$TimePoint, sep = "_"))
+
+sim_data0 <- expand.grid(InfectionStatus = levels(data$InfectionStatus), TimePoint = levels(data$TimePoint), Min = 1:max(data$Min))
+
+sim_data0$Treatment <- factor(paste(sim_data0$InfectionStatus, sim_data0$TimePoint, sep = "_"))
+
+levels(data$TreatmentFull)
+length(levels(sim_data$TreatmentFull))
+levels(sim_data$TreatmentFull)
+length(levels(data$TreatmentFull))
+levels(sim_data0$Treatment)
+
+sim_data <- sim_data[which(sim_data$TreatmentFull %in% levels(data$TreatmentFull)), ]
+
+sim_data$TreatmentFull <- factor(sim_data$TreatmentFull)
+
+sim_data0 <- sim_data0[which(sim_data0$Treatment %in% levels(data$Treatment)), ]
+
+sim_data0$Treatment <- factor(sim_data0$Treatment)
+
+
+unique(sim_data$TreatmentFull)
+unique(sim_data0$Treatment)
+
+preds = epred_draws(fit, newdata = sim_data, ndraws  = 500, re_formula = NA, seed = 123)
+
+preds0 = epred_draws(fit0, newdata = sim_data0, ndraws  = 500, re_formula = NA, seed = 123)
+
+glimpse(preds)
+
+preds
+
+## plot the predictions get the mean and 95% HDI for each group and time point
+
+preds %>%
+  group_by(Min, InfectionStatus, TimePoint, sex) %>%
+  summarize(mean = mean(.epred), hdi = hdi(.epred, .prob = 0.95)) -> preds_C1
+
+preds0 %>%
+  group_by(Min, InfectionStatus, TimePoint) %>%
+  summarize(mean = mean(.epred), hdi = hdi(.epred, .prob = 0.95)) -> preds0_C1
+
+names(preds_C1)
+names(preds0_C1)
+
+preds_C1$means <- exp(preds_C1$mean) - delta
+preds_C1$hdil <- exp(preds_C1$hdi[,1]) - delta
+preds_C1$hdiu <- exp(preds_C1$hdi[,2]) - delta
+
+preds0_C1$means <- exp(preds0_C1$mean) - delta
+preds0_C1$hdil <- exp(preds0_C1$hdi[,1]) - delta
+preds0_C1$hdiu <- exp(preds0_C1$hdi[,2]) - delta
+
+range(preds_C1$means[which(preds_C1$TimePoint == 2)] )
+# preds_C1$hdil <- preds_C1$hdi[,1]
+# preds_C1$hdiu <- preds_C1$hdi[,2]
+
+
+# WONG COLORS
+
+all_wong <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+wong_colors <- c("#009E73", "#E69F00", "#CC79A7")
+
+timepoint_labels = c("1" = "1-4 dpe", "2" = "29-32 dpe", "3" = "86-89 dpe")
+sex_labels = c("F" = "Female", "M" = "Male")
+preds_C1$t = hms::hms(minutes = preds_C1$Min + 600)
+# plot the predictions
+p1 <- ggplot(preds_C1, aes(x = t, y = means, color = InfectionStatus, fill = InfectionStatus, group = InfectionStatus)) +
+  geom_ribbon(aes(ymin = hdil, ymax = hdiu), alpha = 0.5, color = NA) +
+  geom_line() +
+  labs(x = "Time", y = "Locomotor activity (cm/min)") +
+  theme(legend.position = "top") +
+  facet_grid(TimePoint ~ sex, labeller = labeller(TimePoint = timepoint_labels, sex = sex_labels)) +
+  theme_classic() + scale_color_manual(values = wong_colors) +
+  scale_fill_manual(values = wong_colors) +
+  geom_rect(
+    data = rect_data,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    fill = "darkgrey",
+    alpha = 0.1,
+    inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+  ) + geom_rect(
+    data = rect_data2,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    fill = "darkgrey",
+    alpha = 0.1,
+    inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+  ) + theme_grey(base_size = 24)
+
+p1
+
+ggsave("figures/predictions.pdf", p1, width = 10, height = 15, units = "in", dpi = 600)
+ggsave("figures/predictions.png", plot = p1, width = 8, height = 6, units = "in", dpi = 300)
+
+# plot the predictions
+
+preds0_C1$t = hms::hms(minutes = preds0_C1$Min + 600)
+
+p0 <- ggplot(preds0_C1, aes(x = t, y = means, color = InfectionStatus, fill = InfectionStatus, group = InfectionStatus)) +
+  geom_ribbon(aes(ymin = hdil, ymax = hdiu), alpha = 0.5, color = NA) +
+  geom_line() +
+  labs(x = "Time", y = "Locomotor activity (cm/min)") +
+  theme(legend.position = "top") +
+  facet_grid(~TimePoint, labeller = as_labeller(timepoint_labels)) +
+  theme_classic() + scale_color_manual(values = wong_colors) +
+  scale_fill_manual(values = wong_colors) +
+  geom_rect(
+    data = rect_data,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    fill = "darkgrey",
+    alpha = 0.1,
+    inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+  ) + geom_rect(
+    data = rect_data2,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    fill = "darkgrey",
+    alpha = 0.1,
+    inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+  ) + theme_grey(base_size = 24)
+
+
+p0 # + ylim(0, 200)
+
+ggsave("figures/predictions0.pdf", p0, width = 10, height = 15, units = "in", dpi = 600)
+ggsave("figures/predictions0.png", plot = p0, width = 8, height = 6, units = "in", dpi = 300)
+
+# Split the predictions by InfectionStatus and TimePoint
+
+data$TimePoint <- factor(data$TimePoint)
+levels(data$TimePoint)
+
+
+preds %>% filter(InfectionStatus == "C", TimePoint == 1) -> preds_C1
+preds %>% filter(InfectionStatus == "C", TimePoint == 2) -> preds_C2
+preds %>% filter(InfectionStatus == "C", TimePoint == 3) -> preds_C3
+
+preds %>% filter(InfectionStatus == "I-", TimePoint == 1) -> preds_I1
+preds %>% filter(InfectionStatus == "I-", TimePoint == 2) -> preds_I2
+preds %>% filter(InfectionStatus == "I-", TimePoint == 3) -> preds_I3
+
+preds %>% filter(InfectionStatus == "I+", TimePoint == 1) -> preds_Ip1
+preds %>% filter(InfectionStatus == "I+", TimePoint == 2) -> preds_Ip2
+preds %>% filter(InfectionStatus == "I+", TimePoint == 3) -> preds_Ip3
+
+preds_C1
+
+range(data$Min)
+
+
+# Test the difference between the groups
+# I- vs C
+h1 <- preds_I1$.epred - preds_C1$.epred
+100* length(which(h1 > 0)) / length(h1)
+
+ids = which(preds_C1$Min <1000)
+100* length(which(h1[ids] > 0)) / length(h1[ids])
+
+
+h2 <- preds_I2$.epred - preds_C2$.epred
+100* length(which(h2 > 0)) / length(h2)
+
+
+h3 <- preds_I3$.epred - preds_C3$.epred
+100* length(which(h3 > 0)) / length(h3)
+
+# I+ vs C
+
+h4 <- preds_Ip1$.epred - preds_C1$.epred
+100* length(which(h4 > 0)) / length(h4)
+
+h5 <- preds_Ip2$.epred - preds_C2$.epred
+100* length(which(h5 > 0)) / length(h5)
+
+h6 <- preds_Ip3$.epred - preds_C3$.epred
+100* length(which(h6 > 0)) / length(h6)
+
+
+# I+ vs I-
+
+h7 <- preds_Ip1$.epred - preds_I1$.epred
+100* length(which(h7 > 0)) / length(h7)
+
+h8 <- preds_Ip2$.epred - preds_I2$.epred
+100* length(which(h8 > 0)) / length(h8)
+
+h9 <- preds_Ip3$.epred - preds_I3$.epred
+100* length(which(h9 > 0)) / length(h9)
+
+
+# Plot the data
+
+#library(ecotraj)
+#?ecotraj
+#browseVignettes("ecotraj")
+
+data |> group_by(Min10 = Min %/% 10, InfectionStatus, TimePoint, Fish_ID) |> 
+		summarize(Distance_m = sum(Distance_sum)/100, size = n()) -> data10
+data10 |> group_by(InfectionStatus, TimePoint, Min10) |>
+		summarize(Distance_m = mean(Distance_m)) -> data10m
+
+ggplot(data10m, aes(x = Min10, y = Distance_m, color = InfectionStatus)) +
+	   geom_line() + 
+	   facet_wrap(~TimePoint) +
+       theme_grey(base_size = 24)
+
+#save.image()
