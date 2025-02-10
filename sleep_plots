@@ -1,0 +1,423 @@
+# clear environment
+
+rm(list = ls())
+
+library(brms)
+library(tidyverse)
+library(tidybayes)
+library(bayesplot)
+library(mgcv)
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+
+#data <- read.csv("data/Data_Full.csv")
+data <- read.csv("Data_Full.csv")
+data2 <- read.csv("scaled_mass_index.csv")
+
+names(data)
+names(data2)
+
+data <- left_join(data, data2, by = "ID")
+glimpse(data)
+
+# Remove the fish that have missing values
+
+data = data\[-which(data$Remove == 1), \]
+dim(data)
+
+# subset(data, TimePoint == 2) -> data1
+
+# glimpse(data1)
+
+# unique(data1$InfectionStatus)
+
+# subset(data1, InfectionStatus == "I-") -> data2
+
+# unique(data2$ID)
+
+# check the data
+
+glimpse(data)
+
+# factor InfectionStatus
+
+data$InfectionStatus <- factor(data$InfectionStatus)
+levels(data$InfectionStatus)
+levels(data$InfectionStatus)\[2\] <- "I+"
+levels(data$InfectionStatus)
+data$InfectionStatus <- factor(data$InfectionStatus, levels = c("C", "I-", "I+"))
+
+# factor time points
+
+data$TimePoint <- factor(data$TimePoint)
+levels(data$TimePoint)
+
+# factor Replicate
+
+data$Replicate <- factor(data$Replicate)
+
+reps <- sort(levels(data$Replicate))
+reps
+data$Replicate <- factor(data$Replicate, levels = c("R1", "R2", "R3", "R4", "R5", "R6", "R8", "R9", "R10"))
+levels(data$Replicate)
+
+# factor Sex
+
+data$sex <- factor(data$sex)
+levels(data$sex)
+
+glimpse(data)
+
+# Original date-time
+
+#original_time <- as.POSIXct("2023-10-01 10:00:00", tz = "UTC")
+
+# Add 45 minutes (45 \* 60 seconds)
+
+#new_time <- original_time + 45  60  3 \* 12
+
+#(new_time - original_time)
+
+# Extract time of day
+
+#time_of_day <- format(new_time, "%H:%M:%S")
+
+# Display the result
+
+#print(time_of_day)  # Output: "13:19:56"
+
+# Define rectangle boundaries
+
+#rect_data <- data.frame(
+#xmin = 30,
+#xmax = 70,
+#ymin = -Inf,  # Extend to the bottom of the plot
+#ymax = Inf    # Extend to the top of the plot
+#)
+
+# Create the plot
+
+#ggplot(df, aes(x = x, y = y)) +
+#geom_line(color = "blue") +
+#geom_rect(
+#data = rect_data,
+#aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+#fill = "red",
+#alpha = 0.1,
+#inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+
+# ) +
+
+# geom_rect(
+
+# data = rect_data,
+
+# aes(xmin = xmin-2, xmax = xmax-2, ymin = ymin, ymax = ymax),
+
+# fill = "red",
+
+# alpha = 0.1,
+
+# inherit.aes = FALSE # Prevents geom_rect from inheriting x and y aesthetics
+
+# ) +
+
+# geom_rect(
+
+#data = rect_data,
+#aes(xmin = xmin-5, xmax = xmax-5, ymin = ymin, ymax = ymax),
+#fill = "red",
+#alpha = 0.1,
+#inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+#) +
+
+#labs(title = "Line Plot with Vertical Rectangle Highlight",
+#x = "X-axis",
+#y = "Cumulative Sum") +
+#theme_minimal()
+
+# WONG COLORS
+
+#all_wong <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+wong_colors <- c ("#007191", "#E69F00", "#CC79A7")
+
+# Plot the data
+
+ggplot(data, aes(x = Min, y = Distance_sum, color = InfectionStatus)) +
+geom_line() +
+facet_wrap(\~TimePoint) +
+theme_minimal() + scale_color_manual(values = wong_colors) +
+labs(x = "Time", y = "Locomotor activity (cm/min)") +
+theme(legend.position = "top")
+
+# Plot as line for mean of distance sum
+
+require(tidyverse)
+data_sum = data |> group_by(InfectionStatus, Min, TimePoint) |> summarise(mean_dist = mean(Distance_sum))
+
+# Define custom labels for the TimePoint values
+
+timepoint_labels <- c("1" = "1-4 dpe", "2" = "29-32 dpe", "3" = "86-89 dpe")
+
+# Define rectangle boundaries (add time (h) to x axis and colour for nighttime)
+
+rect_data <- data.frame(
+xmin = hms::hms(hours = 20 + c(0,24,48)),
+xmax = hms::hms(hours = 31 + c(0,24,48)),
+ymin = -Inf,  # Extend to the bottom of the plot
+ymax = Inf    # Extend to the top of the plot
+)
+rect_data2 <- data.frame(
+xmin = hms::hms(hours = 21 + c(0,24,48)),
+xmax = hms::hms(hours = 30 + c(0,24,48)),
+ymin = -Inf,  # Extend to the bottom of the plot
+ymax = Inf    # Extend to the top of the plot
+)
+data_sum_t = mutate(data_sum, h = hms::hms(minutes = Min+600))
+p1 <- ggplot(data_sum_t, aes(x = h, y = mean_dist, color = InfectionStatus)) +
+geom_line() +
+facet_wrap(\~TimePoint, labeller = as_labeller(timepoint_labels)) +  # Apply custom labels) +
+theme_minimal() +
+scale_color_manual(
+values = wong_colors,
+labels = c("C" = "Control", "I-" = "Exposed", "I+" = "Infected")  # Custom legend labels
+) +
+labs(x = "Time", y = "Locomotor activity (cm/min)") +
+theme(legend.position = "top") +
+geom_rect(
+data = rect_data,
+aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+fill = "darkgrey",
+alpha = 0.1,
+inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+) +
+geom_rect(
+data = rect_data2,
+aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+fill = "darkgrey",
+alpha = 0.1,
+inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+)
+
+ggsave("figures/mean_dist_sum.pdf", p1, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/mean_dist_sum.png", p1, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/mean_dist_sumA4.png", p1, width = 210, height = 297, units = "mm", dpi = 600)
+
+# Plot as smooth line
+
+p2 <- ggplot(data_sum_t, aes(x = h, y = mean_dist, color = InfectionStatus)) +
+geom_smooth() +
+facet_wrap(\~TimePoint, labeller = as_labeller(timepoint_labels)) +  # Apply custom labels) +
+theme_minimal() +
+scale_color_manual(
+values = wong_colors,
+labels = c("C" = "Control", "I-" = "Exposed", "I+" = "Infected")  # Custom legend labels
+) +
+labs(x = "Time", y = "Locomotor activity (cm/min)") +
+theme(legend.position = "top") +
+geom_rect(
+data = rect_data,
+aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+fill = "darkgrey",
+alpha = 0.1,
+inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+) +
+geom_rect(
+data = rect_data2,
+aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+fill = "darkgrey",
+alpha = 0.1,
+inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+)
+
+ggsave("figures/smooth_line.pdf", p2, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/smooth_line.png", p2, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/smooth_lineA4.png", p2, width = 210, height = 297, units = "mm", dpi = 600)
+
+# Plot accumulated distance (m) per 10 minutes
+
+data |> group_by(Min10 = Min %/% 10, InfectionStatus, TimePoint, Fish_ID) |>
+summarize(Distance_m = sum(Distance_sum)/100, size = n()) -> data10
+data10 |> group_by(InfectionStatus, TimePoint, Min10) |>
+summarize(Distance_m = mean(Distance_m)) -> data10m
+
+data10_t = mutate(data10m, h = hms::hms(minutes = Min10\*10+600))
+
+ggplot(data10m, aes(x = Min10, y = Distance_m, color = InfectionStatus)) +
+geom_line() +
+facet_wrap(\~TimePoint) +
+theme_grey(base_size = 24)
+
+p3 <- ggplot(data10_t, aes(x = h, y = Distance_m, color = InfectionStatus)) +
+geom_line() +
+facet_wrap(\~TimePoint, labeller = as_labeller(timepoint_labels)) +  # Apply custom labels) +
+theme_minimal() +
+scale_color_manual(
+values = wong_colors,
+labels = c("C" = "Control", "I-" = "Exposed", "I+" = "Infected")  # Custom legend labels
+) +
+labs(x = "Time", y = "Locomotor activity (m/10 min)") +
+theme(legend.position = "top") +
+geom_rect(
+data = rect_data,
+aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+fill = "darkgrey",
+alpha = 0.1,
+inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+) +
+geom_rect(
+data = rect_data2,
+aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+fill = "darkgrey",
+alpha = 0.1,
+inherit.aes = FALSE  # Prevents geom_rect from inheriting x and y aesthetics
+)
+
+ggsave("figures/total_displacement(M)\_10min_interval.pdf", p3, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/total_displacement(M)\_10min_interval.png", p3, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/total_displacement(M)\_10min_intervalA4.png", p3, width = 210, height = 297, units = "mm", dpi = 600)
+
+# Plot data TimePoint 1
+
+# Filter the data to include only TimePoint 1
+
+data_timepoint1 <- data %>%
+filter(TimePoint == 1)
+
+# Now use the filtered data for plotting
+
+ggplot(data_timepoint1, aes(x = Min, y = Distance_sum, color = InfectionStatus)) +
+geom_line() +
+theme_minimal() +
+scale_color_manual(values = wong_colors) +
+labs(x = "Time (h)", y = "Locomotor activity (cm)") +
+theme(legend.position = "top")
+
+library(cowplot)
+
+# Filter data for TimePoint 1
+
+data_timepoint1 <- data %>%
+filter(TimePoint == 1)
+
+# Create three plots with different x-axis ranges (adjust these based on your data)
+
+plot1 <- ggplot(data_timepoint1, aes(x = Min, y = Distance_sum, color = InfectionStatus)) +
+geom_line() +
+scale_x_continuous(limits = c(0, 1500)) +  # Adjust limits to divide the x-axis into 3 parts
+theme_minimal() +
+labs(x = "Time (h)", y = "Locomotor activity (cm)")
+
+plot2 <- ggplot(data_timepoint1, aes(x = Min, y = Distance_sum, color = InfectionStatus)) +
+geom_line() +
+scale_x_continuous(limits = c(1500, 3000)) +  # Second section
+theme_minimal() +
+labs(x = "Time (h)", y = "Locomotor activity (cm)")
+
+plot3 <- ggplot(data_timepoint1, aes(x = Min, y = Distance_sum, color = InfectionStatus)) +
+geom_line() +
+scale_x_continuous(limits = c(3000, 4500)) +  # Third section
+theme_minimal() +
+labs(x = "Time (h)", y = "Locomotor activity (cm)")
+
+# Combine the three plots into one figure, stacked vertically
+
+combined_plot <- plot_grid(plot1, plot2, plot3, ncol = 1, align = "v")
+
+# Display the combined plot
+
+print(combined_plot)
+
+# require
+
+#glimpse(data)
+
+# WONG COLORS
+
+#all_wong <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+#wong_colors <- c("#E69F00", "#009E73", "#CC79A7")
+
+#wong_colors <- c ("#009E73", "#E69F00", "#CC79A7")
+
+# plot the predictions
+
+#p1 <- ggplot(preds_C1, aes(x = Min, y = means, color = InfectionStatus, fill = InfectionStatus, group = InfectionStatus)) +
+#geom_ribbon(aes(ymin = hdil, ymax = hdiu), alpha = 0.5, color = NA) +
+#geom_line() +
+#labs(x = "Time", y = "Locomotor activity (cm)") +
+#theme(legend.position = "top") +
+#facet_grid(TimePoint \~ sex ) +
+#theme_classic() + scale_color_manual(values = wong_colors) +
+#scale_fill_manual(values = wong_colors)
+
+#p1 + ylim(0, 200)
+
+#ggsave("figures/predictions.pdf", p1, width = 10, height = 15, units = "in", dpi = 600)
+
+sum_distance <- data |> group_by(Fish_ID, sex, InfectionStatus, TimePoint) |> summarize(mean_dist = mean(Distance_sum))
+head(sum_distance)
+dim(sum_distance)
+
+# Plot cell count for LM
+
+p4 <- ggplot(sum_distance, aes(x = InfectionStatus, y = mean_dist, fill = InfectionStatus)) +
+geom_boxplot() +
+facet_grid(as.factor(sex) \~ TimePoint, labeller = labeller(TimePoint = timepoint_labels)) +  # Apply custom labels) +
+
+# theme_minimal() +
+
+scale_color_manual(values = wong_colors) +
+labs(x = "Infection Status", y = "Total locomotor activity (cm/min)") +
+theme(legend.position = "top") +
+scale_fill_manual(values = wong_colors)
+p4
+
+ggsave("figures/totalLA.pdf", p4, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/totalLA.png", p4, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/totalLAA4.png", p4, width = 210, height = 297, units = "mm", dpi = 600)
+
+p5 <- ggplot(sum_distance, aes(x = InfectionStatus, y = mean_dist, fill = InfectionStatus)) +
+geom_boxplot() +
+facet_grid( \~ TimePoint, labeller = labeller(TimePoint = timepoint_labels)) +  # Apply custom labels
+theme_minimal() +
+scale_fill_manual(
+values = wong_colors,  # Set custom colors
+labels = c("C" = "Control", "I-" = "Exposed", "I+" = "Infected")  # Custom legend labels
+) +
+scale_x_discrete(
+labels = c("C" = "Control", "I-" = "Exposed", "I+" = "Infected")  # Custom x-axis labels
+) +
+labs(x = "Infection Status", y = "Total locomotor activity (cm/min)") +
+theme(legend.position = "top")
+
+p5
+
+ggsave("figures/totalLA.pdf", p5, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/totalLA.png", p5, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/totalLAA4.png", p5, width = 210, height = 297, units = "mm", dpi = 600)
+
+#no legend
+p6 <- ggplot(sum_distance, aes(x = InfectionStatus, y = mean_dist, fill = InfectionStatus)) +
+geom_boxplot() +
+facet_grid( \~ TimePoint, labeller = labeller(TimePoint = timepoint_labels)) +  # Apply custom labels
+theme_minimal() +
+scale_fill_manual(
+values = wong_colors,  # Set custom colors
+labels = c("C" = "Control", "I-" = "Exposed", "I+" = "Infected")  # Custom legend labels
+) +
+scale_x_discrete(
+labels = c("C" = "Control", "I-" = "Exposed", "I+" = "Infected")  # Custom x-axis labels
+) +
+labs(x = "Infection Status", y = "Total locomotor activity (cm/min)") +
+theme(
+legend.position = "none"  # Remove the legend
+)
+
+p6
+
+ggsave("figures/totalLANL.pdf", p6, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/totalLANL.png", p6, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/totalLAA4NL.png", p6, width = 210, height = 297, units = "mm", dpi = 600)
