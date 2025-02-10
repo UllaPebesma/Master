@@ -1,0 +1,456 @@
+```{r}
+#new Rscript
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library (tidyverse)
+
+# Load your data
+r = read.csv("counts.csv")
+
+# Define lookup vectors
+cei = c(C = "Control", E = "Exposed", I = "Infected")
+abc = c(A = "1-4 dpe", B = "29-32 dpe", C = "87-90 dpe")
+
+# Update columns using lookup vectors
+r$Infection.status = cei[r$Infection.status]
+r$Timepoint = abc[r$Timepoint]
+
+# Rename r to df
+df <- r  # Now df is a data frame
+
+# You can now use df with dplyr or other data manipulation functions
+df <- df %>%
+  mutate(Infection.status = case_when(
+    Infection.status %in% c("Infected", "Exposed") & Timepoint == "1-4 dpe" ~ "Exposed",
+    TRUE ~ Infection.status  # Keep other values as they are
+  ))
+
+print(df)
+
+# remove "X"
+r1 = df[-1]
+apply(r1[,1:10], 2, sum) |> sort()
+r.sel = r1
+
+# WONG COLORS
+#all_wong <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+#wong_colors <- c ("Control" = "#009E73", "Exposed" = "#E69F00", "Infected" = "#CC79A7")
+wong_colors <- c ("Control" = "#007191", "Exposed" = "#E69F00", "Infected" = "#CC79A7")
+
+r.sel |> pivot_longer(cols = starts_with("X11")) -> r.long
+
+# facet labels:
+cluster.labs = c("C11769_M", "C11770_M", "C11772_L", "C11775_L", "C11777_L", "C11778_L", "C11780_L", "C11782_M", "C11783_M", "C11784_M")
+# New labels as a named vector for mapping
+new_labels <- c("X11769_M" = "C1M", "X11770_M" = "C2M", "X11772_L" = "C4L", 
+                "X11775_L" = "C7L", "X11777_L" = "C9L", "X11778_M" = "C10M", 
+                "X11780_L" = "C12L", "X11782_M" = "C14M", "X11783_M" = "C15M", 
+                "X11784_M" = "C16M")
+
+# Replace labels in cluster.labs using new_labels
+cluster.labs <- new_labels
+```
+
+```{r}
+# Plot cell count per cluster
+g <- ggplot(r.long, aes(x = Infection.status, y = value, fill = Infection.status)) +
+  geom_boxplot() +
+  facet_grid(name ~ Timepoint, scales = "free", labeller = labeller(name = cluster.labs)) + 
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors) +
+  xlab("Infection status") +
+  ylab("Cell count") +
+  theme(legend.position = "top") +
+  labs(fill = NULL)  # Remove the legend title
+
+print(g)
+
+ggsave("figures/cc_percluster.pdf", g, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cc_percluster.png", g, width = 8, height = 6, units = "in", dpi = 300)
+ggsave("figures/cc_perclustera4.png", g, width = 210, height = 297, units = "mm", dpi = 600)
+
+# Plot cell count per cluster
+gv <- ggplot(r.long, aes(x = Infection.status, y = value, fill = Infection.status)) +
+  geom_violin(trim = FALSE) +  # Add trim = FALSE if you want the full shape
+  geom_jitter(width = 0.2, size = 1, alpha = 0.6) +  # Add jittered points
+  facet_grid(name ~ Timepoint, scales = "free", labeller = labeller(name = cluster.labs)) + 
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors) +
+  xlab("Infection status") +
+  ylab("Cell count") +
+  theme(legend.position = "top") +
+  labs(fill = NULL)  # Remove the legend title
+
+print(gv)
+
+ggsave("figures/cc_perclusterviolin.pdf", gv, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cc_perclusterviolin.png", gv, width = 8, height = 6, units = "in", dpi = 300)
+ggsave("figures/cc_perclusterviolina4.png", gv, width = 210, height = 297, units = "mm", dpi = 600)
+```
+
+```{r}
+#for (f in names(r)[2:17]) {
+#  png(paste0(f, ".png"), 1024, 1024)
+#  g = ggplot(r, aes(x = Infection.status, y = .data[[f]]), ylab = "Counts")+ geom_boxplot() +
+#    facet_wrap(.~Timepoint) + ylab("Counts") + ggtitle(f)
+#  print(g)
+#  dev.off()
+#}
+
+r.long$ML = substr(r.long$name, 8, 8)
+#r.long$name = substr(r.long$name, 2, 6)
+ML = c(M = "Myelomonocytes", L = "Lymphocytes")
+r.long$ML = ML[r.long$ML] 
+abc = c(A = "1-4 dpe", B = "29-32 dpe", C = "86-89 dpe")
+#wong_colors1 <- c ("Myelomonocytes" = "#D55E00", "Lymphocytes" = "#56B4E9")
+wong_colors1 <- c ("Myelomonocytes" = "#41b6c4", "Lymphocytes" = "#c7e9b4")
+
+
+# Plot cell count for LM
+g1 <- ggplot(r.long, aes(x = ML, y = value, fill = ML)) +
+  geom_boxplot() +
+  facet_grid(Timepoint ~ Infection.status, #scales = "free", 
+             labeller = labeller(Timepoint = abc)) + 
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors1) +
+  xlab("Infection status") +
+  ylab("Cell count") +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(size = 14),  # Increase legend title font size
+    legend.text = element_text(size = 12),   # Increase legend text font size
+    axis.title = element_text(size = 14),    # Increase axis title font size
+    axis.text = element_text(size = 9),     # Increase axis text (labels) font size
+    strip.text = element_text(size = 12),    # Increase facet labels font size
+  ) +
+  labs(fill = NULL)  # Remove the legend title
+
+print(g1)
+
+ggsave("figures/cc_LM.pdf", g1, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cc_LM.png", g1, width = 8, height = 6, units = "in", dpi = 600)
+
+# Plot cell count for ML, violin
+gv1 <- ggplot(r.long, aes(x = ML, y = value, fill = ML)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, size = 1, alpha = 0.5, color = "black") + # Add jittered points
+  facet_grid(Timepoint ~ Infection.status, 
+             labeller = labeller(Timepoint = abc)) + 
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors1) +
+  xlab("Infection status") +
+  ylab("Cell count") +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(size = 14),  # Increase legend title font size
+    legend.text = element_text(size = 12),   # Increase legend text font size
+    axis.title = element_text(size = 14),    # Increase axis title font size
+    axis.text = element_text(size = 9),     # Increase axis text (labels) font size
+    strip.text = element_text(size = 12),    # Increase facet labels font size
+  ) +
+  labs(fill = NULL)  # Remove the legend title
+
+print(gv1)
+
+ggsave("figures/cc_LMviolin.pdf", gv1, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cc_LMviolin.png", gv1, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/cc_LMviolina4.png", gv1, width = 210, height = 297, units = "mm", dpi = 600)
+```
+
+```{r}
+#aov(log(value) ~ Infection.status + ML + Timepoint, r.long) |> summary()
+#glm(value ~ Infection.status * ML * Timepoint, r.long, family = "poisson") |> summary()
+glm(value ~ Infection.status * ML * Timepoint, r.long, family = "poisson") |> anova() #summary()
+```
+
+```{r}
+# stas
+aov(value ~ Infection.status * ML * Timepoint, r.long) |> summary()
+aov(value ~ Infection.status * name * Timepoint, r.long) |> summary()
+g = glm(value ~ Infection.status * name * Timepoint, r.long, family = "poisson") |> summary()
+g
+aov(value ~ Infection.status + ML + ML:name + Timepoint, r.long) |> summary()
+#aov(value ~ Infection.status + ML + Timepoint, r.long) |> summary()
+aov(sqrt(value) ~ Infection.status + ML + ML:name + Timepoint + ML:Timepoint, r.long) |> summary()
+
+# Plot cell count on log scale for LM
+g2 <- ggplot(r.long, aes(x = ML, y = value, fill = ML)) +
+  geom_boxplot() + scale_y_continuous(trans='log10') +
+  facet_grid(Timepoint ~ Infection.status, #scales = "free",
+             labeller = labeller(Timepoint = abc)) +
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors1) +
+  xlab("Infection status") +
+  ylab("Cell count") +
+  theme(legend.position = "top") +
+  labs(fill = NULL)  # Remove the legend title
+
+print(g2)
+
+ggsave("figures/cc_LM_log10.pdf", g2, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cc_LM_log10.png", g2, width = 8, height = 6, units = "in", dpi = 300)
+
+# Plot cell count for ML, violin
+gv2 <- ggplot(r.long, aes(x = ML, y = value, fill = ML)) +
+  geom_boxplot() + scale_y_continuous(trans='log10') +
+  geom_jitter(width = 0.2, size = 1, alpha = 0.5, color = "black") + # Add jittered points
+  facet_grid(Timepoint ~ Infection.status, 
+             labeller = labeller(Timepoint = abc)) + 
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors1) +
+  xlab("Infection status") +
+  ylab("Cell count") +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(size = 14),  # Increase legend title font size
+    legend.text = element_text(size = 12),   # Increase legend text font size
+    axis.title = element_text(size = 14),    # Increase axis title font size
+    axis.text = element_text(size = 9),     # Increase axis text (labels) font size
+    strip.text = element_text(size = 12),    # Increase facet labels font size
+  ) +
+  labs(fill = NULL)  # Remove the legend title
+
+print(gv2)
+
+ggsave("figures/cc_LMviolinlog10.pdf", gv2, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cc_LMviolinlog10.png", gv2, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/cc_LMviolina4log10.png", gv2, width = 210, height = 297, units = "mm", dpi = 600)
+```
+
+```{r}
+# ggplot with infection status as a categorical variable
+r.long$TimePt = factor(factor(r.long$Timepoint), labels = c("1-4",   "29-32", "87-90"))
+
+# Plot cell count on log scale per cluster
+p3 <- ggplot(r.long, aes(x = TimePt, y = value, fill = Infection.status)) +
+  scale_y_continuous(trans='log10') +
+  geom_boxplot() + 
+  facet_wrap(~name, labeller = labeller(name = cluster.labs)) +
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors) +
+  xlab("Timepoint (dpe)") +
+  ylab("Cell count") +
+  theme(legend.position = "top") +
+  labs(fill = NULL)  # Remove the legend title
+
+print(p3)
+
+ggsave("figures/cclog10_percluster.pdf", p3, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cclog10_percluster.png", p3, width = 8, height = 6, units = "in", dpi = 300)
+
+# Plot cell count per cluster
+gv3 <- ggplot(r.long, aes(x = TimePt, y = value, fill = Infection.status)) +
+  scale_y_continuous(trans='log10') +
+  geom_boxplot() + 
+  geom_jitter(width = 0.05, alpha = 0.5, size = 2, position = position_jitter(width = 0.05)) +  # Jitter points on top  
+  facet_wrap(~name, labeller = labeller(name = cluster.labs)) +
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors) +
+  xlab("Timepoint (dpe)") +
+  ylab("Cell count") +
+  theme(legend.position = "top") +
+  labs(fill = NULL)  # Remove the legend title
+
+print(gv3)
+
+ggsave("figures/cc_perclusterviolinlog10.pdf", gv3, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cc_perclusterviolinlog10.png", gv3, width = 8, height = 6, units = "in", dpi = 300)
+ggsave("figures/cc_perclusterviolina4log10.png", gv3, width = 210, height = 297, units = "mm", dpi = 600)
+```
+
+```{r}
+# Sort cclog10_percluster to LM
+# Define the desired order for the clusters in cluster.labs
+#desired_order <- c("C4L", "C7L", "C9L", "C12L", "C1M", "C2M", "C10M", "C14M", "C15M", "C16M")
+desired_order <- c("X11772_L" = "C4L", "X11775_L" = "C7L", "X11777_L" = "C9L", "X11780_L" = "C12L", "X11769_M" = "C1M", "X11770_M" = "C2M", "X11778_M" = "C10M", "X11782_M" = "C14M", "X11783_M" = "C15M",  "X11784_M" = "C16M")
+#desired_order <- c("C11772_L", "C11775_L", "C11777_L", "C11780_L", "C11769_M", "C11770_M", "C11780_L", "C11782_M", "C11783_M", "C11784_M")
+
+# Set the order of 'name' in r.long
+#r.long$name <- factor(r.long$name, labels = desired_order)
+r.long$name_ordered = factor(desired_order[r.long$name], levels = desired_order)
+#r.long$name_ordered <- factor(r.long$name, labels = desired_order)
+r.long$TimePt = factor(factor(r.long$Timepoint), labels = c("1-4",   "29-32", "87-90"))
+
+# Plot with the reordered clusters
+p4 <- ggplot(r.long, aes(x = TimePt, y = value, fill = Infection.status)) +
+  scale_y_continuous(trans = 'log10') +
+  geom_boxplot() + 
+  facet_wrap(~name_ordered, labeller = labeller(name = cluster.labs)) +
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors) +
+  xlab("Timepoint (dpe)") +
+  ylab("Cell count") +
+  theme(legend.position = "top") +
+  labs(fill = NULL)  # Remove the legend title
+
+print(p4)
+
+ggsave("figures/cclog10_perorderedcluster.pdf", p4, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cclog10_perorderedcluster.png", p4, width = 8, height = 6, units = "in", dpi = 300)
+
+pv4 <- ggplot(r.long, aes(x = TimePt, y = value, fill = Infection.status)) +
+  scale_y_continuous(trans = 'log10') +
+  geom_boxplot() + 
+  #geom_violin(trim = FALSE) +  # Add trim = FALSE if you want the full shape
+  geom_jitter(width = 0.2, size = 1, alpha = 0.6) +  # Add jittered points
+  facet_wrap(~name_ordered, labeller = labeller(name = cluster.labs)) +
+  theme_minimal() +
+  scale_fill_manual(values = wong_colors) +
+  xlab("Timepoint (dpe)") +
+  ylab("Cell count") +
+  theme(legend.position = "top") +
+  labs(fill = NULL)  # Remove the legend title
+
+print(pv4)
+
+ggsave("figures/cclog10_perorderedclusterjitter.pdf", pv4, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/cclog10_perorderedclusterjitter.png", pv4, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/cclog10_perorderedclusterjitterA4.png", pv4, width = 210, height = 297, units = "mm", dpi = 600)
+```
+
+```{r}
+r.sel$M = apply(r.sel[c(1,2,6,8,9,10)], 1, sum)
+r.sel$L = apply(r.sel[c(3,4,5,7)], 1, sum)
+
+r.sel$replicate = c(rep(1, 8), rep(2, 8), rep(3, 8), rep(4, 7), rep(5, 7), rep(6, 8), rep(7, 8), rep(8, 8), rep(9, 8) )
+# brms model of the ratio
+r.sel$ML <- log(r.sel$M/r.sel$L)
+library(brms)
+#lr_model <- brm(ML ~ Infection.status * Timepoint + (1|replicate), data = r.sel, control = list(max_treedepth = 16))
+
+#lr_model <- lme4::lmer(ML ~ Infection.status + (1|replicate), data = r.sel)
+
+r.sel$IT = paste(r.sel$Infection.status, r.sel$Timepoint)
+aov(ML ~ Infection.status * Timepoint, r.sel) |> summary()
+aov(M/L ~ Infection.status * Timepoint, r.sel) |> summary()
+
+
+
+u = unique(r.sel$IT)
+r.sel$ITf = factor(r.sel$IT, levels = u[c(2,1,8,7,6,5,4,3)])
+ml_colors = wong_colors[c(1,2,1,2,3,1,2,3)]
+names(ml_colors) = levels(r.sel$ITf)
+r.sel$ml_colors = ml_colors[r.sel$ITf]
+
+p5 <- ggplot(r.sel, aes(x = ITf, y = M/L, fill = ITf)) +  # Map fill to ITf
+  geom_boxplot() + 
+  theme_minimal() +
+  scale_fill_manual(values = ml_colors) +  # Use custom colors
+  xlab("Infection status x time point") +
+  ylab("M/L") +
+  theme(
+    legend.position = "none",  # Remove the legend
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Adjust x-axis labels
+  )
+
+print(p5)
+
+ggsave("figures/MLratio.pdf", p5, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/MLratio.png", p5, width = 8, height = 6, units = "in", dpi = 300)
+
+# Create a new grouping variable to define the groups
+r.sel$Group <- factor(
+  rep(c("Group 1", "Group 2", "Group 3"), 
+      times = c(2, 3, 3)), 
+  levels = c("Group 1", "Group 2", "Group 3")  # Ensure proper order
+)
+
+# Plot the boxplot with the new grouping variable
+pv5 <- ggplot(r.sel, aes(x = interaction(ITf, Group), y = M/L, fill = ITf)) + 
+  geom_boxplot() + 
+  geom_jitter(width = 0.2, size = 1, alpha = 0.5, color = "black") + 
+  theme_minimal() +
+  scale_fill_manual(values = ml_colors) + 
+  xlab("Infection status x time point") +
+  ylab("M/L") +
+  theme(
+    legend.position = "none",  
+    axis.text.x = element_text(angle = 45, hjust = 1)  
+  ) +
+  scale_x_discrete(
+    breaks = unique(r.sel$ITf),  # Ensure labels are at the correct positions
+    labels = c("Group 1", "Group 2", "Group 3")  # Optional: Custom x-axis labels
+  )
+
+print(pv5)
+
+ggsave("figures/MLratiov.pdf", pv5, width = 15, height = 10, units = "in", dpi = 600)
+ggsave("figures/MLratiov.png", pv5, width = 8, height = 6, units = "in", dpi = 600)
+ggsave("figures/MLratiov.pngA4.png", pv5, width = 210, height = 297, units = "mm", dpi = 600)
+```
+
+```{r}
+pairwise.t.test(r.long$value, as.factor(r.long$name), p.adj = "bonf")
+pairwise.t.test(r.long$value, as.factor(r.long$name))
+boxplot(value~name, r.long)
+```
+
+```{r}
+# RDA of clusters
+# load required packages
+
+library(vegan)
+library(MASS)
+library(ellipse)
+library(FactoMineR)
+
+# Hellinger transformation of r.sel
+names(r.sel)
+spe <- r.sel[, c(1:10)]
+spe.hell <- as.matrix(decostand(spe, method = "hellinger"))
+row.names(spe.hell) = 1:70
+# run RDA
+rda_result <- rda(spe.hell ~ Infection.status + Timepoint + Condition(replicate), data = r.sel)
+
+# Summary of the result
+summary(rda_result)
+
+# visualization
+png("figures/rda.png", 800, 800, pointsize = 24)
+par(mar = c(4, 4, 0.1, 0.1))
+plot(rda_result, scaling = 2)
+dev.off()
+
+# significance, permutation test
+RsquareAdj(rda_result)
+anova.cca(rda_result, by = "margin")
+anova.cca(rda_result, by = "axis")
+
+rda_result
+
+# boral
+#y <- spe
+#X <- model.matrix(~ Infection.status * Timepoint, data = r.sel)
+```
+
+```{r}
+# mvabund
+
+install.packages("mvabund")
+library(mvabund)
+
+class(spe)
+head(as.matrix(spe))
+head(as.matrix(spe)) |> class()
+spe.m <- as.matrix(spe)
+head(spe.m)
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel)
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial")
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> summary()
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> anova()
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> plot()
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> class()
+?plot.manyglm
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> plot(which = 2)
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> plot(which = 3)
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> plot(which = 4)
+manyglm(spe.m~Infection.status + Timepoint + as.factor(replicate),data=r.sel, family = "negative.binomial") |> anova()
+manyglm(spe.m~Infection.status + Timepoint,data=r.sel, family = "negative.binomial") |> anova()
+manyglm(spe.m~Infection.status * Timepoint,data=r.sel, family = "negative.binomial") |> anova()
+manyglm(spe.m~Infection.status * Timepoint,data=r.sel, family = "negative.binomial") -> aa
+
+
+
+anova(aa, p.uni="adjusted")
+```
